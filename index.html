@@ -144,7 +144,10 @@ td{padding:11px 14px;vertical-align:middle;}
 .cat-tag{display:inline-block;padding:2px 8px;border-radius:20px;background:var(--bg);border:1px solid var(--border);font-size:10.5px;font-weight:600;color:var(--muted);white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;}
 .c-rrp{text-align:right;font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap;}
 .c-cost{text-align:right;font-size:13.5px;font-weight:700;color:var(--text);white-space:nowrap;}
-.c-stock{text-align:center;}
+.c-supplier{white-space:nowrap;}
+.supplier-badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;}
+.supplier-badge.dd{background:var(--dd-bg);color:var(--dd);}
+.supplier-badge.ts{background:var(--ts-bg);color:var(--ts);}
 .sb{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;}
 .s-in{background:#eaf6ef;color:var(--accent);}
 .s-lo{background:#fff7e0;color:var(--amber);}
@@ -286,14 +289,14 @@ mark{background:#fef3a0;border-radius:2px;padding:0 1px;font-weight:inherit;}
       </svg>
     </div>
     <h2>Loading price lists…</h2>
-    <p>Fetching files automatically from Dropbox. This usually takes a few seconds.</p>
+    <p>Fetching the latest price lists from Google Sheets. This usually takes a few seconds.</p>
     <div class="home-upload-cards">
       <div class="home-upload-card dd" id="huc-dd">
         <div class="huc-header">
           <div class="huc-dot dd"></div>
           <div class="huc-name dd">Dicker Data</div>
         </div>
-        <div class="huc-desc">Auto-loading from Dropbox…</div>
+        <div class="huc-desc">Auto-loading from Google Sheets…</div>
         <div class="huc-status" id="huc-dd-status">Connecting…</div>
         <label class="huc-btn dd" for="fin-dd">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
@@ -308,7 +311,7 @@ mark{background:#fef3a0;border-radius:2px;padding:0 1px;font-weight:inherit;}
           <div class="huc-dot ts"></div>
           <div class="huc-name ts">Telstra Supplier</div>
         </div>
-        <div class="huc-desc">Auto-loading from Dropbox…</div>
+        <div class="huc-desc">Auto-loading from Google Sheets…</div>
         <div class="huc-status" id="huc-ts-status">Connecting…</div>
         <label class="huc-btn ts" for="fin-ts">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
@@ -350,7 +353,7 @@ mark{background:#fef3a0;border-radius:2px;padding:0 1px;font-weight:inherit;}
             </svg>
             Load CSV / XLSX
           </label>
-          <button class="btn-uc-refresh dd" onclick="fetchSource('dd').then(ok => { if(ok) mergeAndShow('Dropbox'); })" title="Re-fetch from Dropbox">
+          <button class="btn-uc-refresh dd" onclick="fetchSource('dd').then(ok => { if(ok) mergeAndShow('Google Sheets'); })" title="Re-fetch from Google Sheets">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
@@ -372,7 +375,7 @@ mark{background:#fef3a0;border-radius:2px;padding:0 1px;font-weight:inherit;}
             </svg>
             Load XLSX / CSV
           </label>
-          <button class="btn-uc-refresh ts" onclick="fetchSource('ts').then(ok => { if(ok) mergeAndShow('Dropbox'); })" title="Re-fetch from Dropbox">
+          <button class="btn-uc-refresh ts" onclick="fetchSource('ts').then(ok => { if(ok) mergeAndShow('Google Sheets'); })" title="Re-fetch from Google Sheets">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
@@ -442,6 +445,7 @@ mark{background:#fef3a0;border-radius:2px;padding:0 1px;font-weight:inherit;}
               <th data-col="rrp" style="text-align:right">RRP (ex. GST) <span class="arr">↕</span></th>
               <th data-col="price" style="text-align:right">Cost (ex. GST) <span class="arr">↕</span></th>
               <th data-col="stock" style="text-align:center">Stock <span class="arr">↕</span></th>
+              <th data-col="supplier">Supplier <span class="arr">↕</span></th>
             </tr>
           </thead>
           <tbody id="tbody"></tbody>
@@ -497,26 +501,19 @@ const PAGE = 50;
 let fPrimary = '', fSecondary = '', fTertiary = '', fInStock = false;
 let srcDD = true, srcTS = true;  // source visibility
 
-// ─── Dropbox file sources ─────────────────────────────────────────────────────
-// dl=1 = direct binary download. These are public "anyone with link" Dropbox URLs.
+// ─── File sources via Cloudflare Worker ───────────────────────────────────────
+// Fetches via your own Cloudflare Worker which proxies Google Sheets CSV exports.
+// This bypasses SharePoint's CSP which blocks direct requests to external domains.
 const SOURCES = {
   dd: {
-    url: 'https://www.dropbox.com/scl/fi/bnixx4xov602mbfdmbmaz/dickerpricelist.csv?rlkey=beb5uqg91zx7ao8lpufll84ge&dl=1',
-    type: 'csv',
+    url: 'https://pricelist.charlie-2e0.workers.dev/dd',
     label: 'Dicker Data'
   },
   ts: {
-    url: 'https://www.dropbox.com/scl/fi/4kzedbrrcvz7kytvtjmtw/Inventory-stock-on-hand-and-lifecycle-update.xlsx?rlkey=pt4ok656elphxla1t0mcwvila&dl=1',
-    type: 'xlsx',
+    url: 'https://pricelist.charlie-2e0.workers.dev/ts',
     label: 'Telstra Supplier'
   }
 };
-
-// CORS proxy — used when direct fetch is blocked (e.g. opening as a local file://)
-// allorigins returns JSON: { contents: "base64data", status: { url, content_type } }
-function proxyUrl(url) {
-  return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-}
 
 function setSourceStatus(source, msg, cls) {
   const homeEl = document.getElementById(`huc-${source}-status`);
@@ -527,79 +524,66 @@ function setSourceStatus(source, msg, cls) {
 
 async function fetchSource(source) {
   const cfg = SOURCES[source];
-  setSourceStatus(source, 'Fetching from Dropbox…', '');
+  setSourceStatus(source, 'Fetching…', '');
   setDot('spin'); setTxt('Loading files…');
 
-  // Try direct fetch first, then via CORS proxy as fallback
-  const attempts = [
-    { label: 'direct', url: cfg.url },
-    { label: 'proxy',  url: proxyUrl(cfg.url) }
-  ];
+  try {
+    console.log(`[${source}] Fetching from worker: ${cfg.url}`);
+    const resp = await fetch(cfg.url);
+    console.log(`[${source}] HTTP ${resp.status} | Content-Type: ${resp.headers.get('content-type')}`);
 
-  for(const attempt of attempts) {
-    try {
-      console.log(`[${source}] Trying ${attempt.label}: ${attempt.url.slice(0,80)}`);
-      const resp = await fetch(attempt.url);
-      if(!resp.ok) { console.warn(`[${source}] ${attempt.label} → HTTP ${resp.status}`); continue; }
-      const ct = resp.headers.get('content-type') || '';
-      if(ct.includes('text/html')) { console.warn(`[${source}] ${attempt.label} → got HTML, skipping`); continue; }
+    if(!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
 
-      const buf = await resp.arrayBuffer();
-      if(buf.byteLength < 100) { console.warn(`[${source}] ${attempt.label} → response too small`); continue; }
+    const text = await resp.text();
+    if(!text || text.length < 100) throw new Error('Response too short — sheet may be empty');
+    if(text.trimStart().startsWith('<')) throw new Error('Got HTML — check sheet is shared publicly');
 
-      // Parse rows from the buffer
-      let rows;
-      if(cfg.type === 'csv') {
-        let text = new TextDecoder('utf-8').decode(buf);
-        if(text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // strip BOM
-        rows = parseCSV(text);
-      } else {
-        const wb = XLSX.read(new Uint8Array(buf), { type:'array', raw: source === 'ts' });
-        const sheetName = (source === 'ts')
-          ? (wb.SheetNames.find(n => n === 'SOH Report') ||
-             wb.SheetNames.find(n => n.toLowerCase().includes('soh')) ||
-             wb.SheetNames[0])
-          : wb.SheetNames[0];
-        console.log(`[${source}] Using sheet: "${sheetName}"`);
-        rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header:1, defval:'', raw: source === 'ts' });
-      }
+    console.log(`[${source}] Got ${text.length.toLocaleString()} chars, parsing…`);
+    const clean = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
+    const rows = parseCSV(clean);
 
-      const products = source === 'ts' ? parseTelstra(rows) : parseDicker(rows);
-      if(!products.length) throw new Error('File loaded but 0 products parsed — check file format');
+    const products = source === 'ts' ? parseTelstra(rows) : parseDicker(rows);
+    if(!products.length) throw new Error('0 products parsed — check sheet columns');
 
-      // Store results
-      if(source === 'dd') {
-        DICKER = products;
-        document.getElementById('huc-dd')?.classList.add('loaded');
-        document.getElementById('huc-dd')?.classList.remove('needs-manual');
-      } else {
-        TELSTRA = products;
-        document.getElementById('huc-ts')?.classList.add('loaded');
-        document.getElementById('huc-ts')?.classList.remove('needs-manual');
-      }
+    if(source === 'dd') {
+      DICKER = products;
+      document.getElementById('huc-dd')?.classList.add('loaded');
+      document.getElementById('huc-dd')?.classList.remove('needs-manual');
+    } else {
+      TELSTRA = products;
+      document.getElementById('huc-ts')?.classList.add('loaded');
+      document.getElementById('huc-ts')?.classList.remove('needs-manual');
+    }
 
-      const time = new Date().toLocaleTimeString('en-AU', {hour:'2-digit', minute:'2-digit'});
-      setSourceStatus(source, `✓ ${products.length.toLocaleString()} products · ${time}`, 'ok');
-      console.log(`[${source}] ✓ ${products.length} products via ${attempt.label}`);
-      return true;
+    const time = new Date().toLocaleTimeString('en-AU', { hour:'2-digit', minute:'2-digit' });
+    setSourceStatus(source, `✓ ${products.length.toLocaleString()} products · ${time}`, 'ok');
+    console.log(`[${source}] ✓ ${products.length} products loaded`);
+    return true;
 
-    } catch(e) {
-      console.warn(`[${source}] ${attempt.label} error:`, e.message);
+  } catch(e) {
+    console.error(`[${source}] Failed:`, e.message);
+    setSourceStatus(source, `⚠ ${e.message.slice(0, 55)}`, 'err');
+    document.getElementById(`huc-${source}`)?.classList.add('needs-manual');
+    return false;
+  }
+}
+
+// Auto-fetch — each source loads independently and shows results as soon as it's ready
+async function autoFetch() {
+  let anyLoaded = false;
+
+  async function loadOne(source) {
+    const ok = await fetchSource(source);
+    if(ok) {
+      anyLoaded = true;
+      mergeAndShow('auto'); // re-render immediately with whatever is loaded so far
     }
   }
 
-  // Both attempts failed
-  setSourceStatus(source, '⚠ Auto-load failed — upload manually below', 'err');
-  document.getElementById(`huc-${source}`)?.classList.add('needs-manual');
-  return false;
-}
+  // Fire both fetches simultaneously — each updates the UI as soon as it finishes
+  await Promise.all([loadOne('dd'), loadOne('ts')]);
 
-// Auto-fetch both files in parallel on page load
-async function autoFetch() {
-  const [ddOk, tsOk] = await Promise.all([fetchSource('dd'), fetchSource('ts')]);
-  if(ddOk || tsOk) {
-    mergeAndShow('Dropbox');
-  } else {
+  if(!anyLoaded) {
     setDot('err');
     setTxt('Auto-load failed — upload files manually');
   }
@@ -709,24 +693,34 @@ function loadFile(file, source) {
   else reader.readAsArrayBuffer(file);
 }
 
-function mergeAndShow(filename) {
+function mergeAndShow(trigger) {
   ALL = [...DICKER, ...TELSTRA];
   buildSrcPills();
-  buildCategorySelects();
-  resetFilters();
-  setDot('ok');
+
+  const isFirstLoad = document.getElementById('mainLayout').style.display === 'none';
+
+  if(isFirstLoad) {
+    // First source to load — transition to results and reset everything
+    buildCategorySelects();
+    resetFilters();
+    document.getElementById('dropZone').style.display = 'none';
+    document.getElementById('mainLayout').style.display = 'flex';
+    document.getElementById('q').focus();
+  } else {
+    // Second source loaded in background — rebuild categories but preserve current search/filters
+    buildCategorySelects();
+  }
+
+  const bothLoaded = DICKER.length && TELSTRA.length;
+  setDot(bothLoaded ? 'ok' : 'spin');
   const parts = [];
   if(DICKER.length) parts.push('Dicker: ' + DICKER.length.toLocaleString());
   if(TELSTRA.length) parts.push('Telstra: ' + TELSTRA.length.toLocaleString());
-  setTxt(ALL.length.toLocaleString() + ' total');
+  setTxt(bothLoaded ? ALL.length.toLocaleString() + ' total' : ALL.length.toLocaleString() + ' loaded — fetching more…');
   document.getElementById('rmeta').textContent = parts.join('  ·  ') + '  ·  ' + new Date().toLocaleTimeString('en-AU', {hour:'2-digit',minute:'2-digit'});
   const q = document.getElementById('q');
   q.disabled = false;
   q.placeholder = 'Search ' + ALL.length.toLocaleString() + ' products…';
-  // Always transition to results immediately
-  document.getElementById('dropZone').style.display = 'none';
-  document.getElementById('mainLayout').style.display = 'flex';
-  q.focus();
   doFilter();
 }
 
@@ -1020,7 +1014,7 @@ function doFilter() {
   if(sortCol) {
     const dir = sortDir==='asc'?1:-1;
     filtered.sort((a,b)=>{
-      let av=a[sortCol], bv=b[sortCol];
+      let av=a[sortCol==='supplier'?'source':sortCol], bv=b[sortCol==='supplier'?'source':sortCol];
       if(sortCol==='price'||sortCol==='rrp'){av=av??-Infinity;bv=bv??-Infinity;}
       else if(sortCol==='stock'){const toN=v=>typeof v==='number'?v:(v==='In Stock'?999999:-1);av=toN(av);bv=toN(bv);}
       else{av=(av||'').toLowerCase();bv=(bv||'').toLowerCase();}
@@ -1071,7 +1065,7 @@ function render(){
   const raw=document.getElementById('q').value.trim().toLowerCase(), words=raw.split(/\s+/).filter(Boolean);
   document.getElementById('rcount').innerHTML=`<strong>${total.toLocaleString()}</strong> result${total!==1?'s':''}`;
   if(!slice.length){
-    document.getElementById('tbody').innerHTML=`<tr><td colspan="7"><div class="no-r"><h3>No results found</h3><p>Try adjusting your search or filters.</p></div></td></tr>`;
+    document.getElementById('tbody').innerHTML=`<tr><td colspan="8"><div class="no-r"><h3>No results found</h3><p>Try adjusting your search or filters.</p></div></td></tr>`;
   } else {
     document.getElementById('tbody').innerHTML=slice.map((p,i)=>`
       <tr data-i="${i}">
@@ -1082,6 +1076,7 @@ function render(){
         <td class="c-rrp">${fmt(p.rrp)}</td>
         <td class="c-cost">${p.price!==null?fmt(p.price):'<span style="color:var(--faint);font-weight:500">N/A</span>'}</td>
         <td class="c-stock">${stockBadge(p.stock)}</td>
+        <td class="c-supplier"><span class="supplier-badge ${p.source}">${p.source==='dd'?'Dicker Data':'Telstra'}</span></td>
       </tr>`).join('');
     document.querySelectorAll('#tbody tr').forEach((row,i)=>row.addEventListener('click',()=>openModal(slice[i])));
   }
