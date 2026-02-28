@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>entconn Inventory Search</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+:root {
+  --white:#fff; --bg:#f4f4f2; --border:#e4e4e0; --border-mid:#cecec8;
+  --text:#181816; --muted:#888882; --faint:#b4b4ae;
+  --accent:#1a6b3a; --accent-bg:#eef7f2; --accent-dark:#14522d;
+  --red:#c0401a; --amber:#996000;
+  --dd:#1a4a8a; --dd-bg:#eef2fb;   /* Dicker Data blue */
+  --ts:#7b2fa0; --ts-bg:#f5eefa;   /* Telstra purple */
+  --sh:0 1px 4px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --sh-lg:0 24px 56px rgba(0,0,0,.14),0 8px 18px rgba(0,0,0,.07);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Instrument Sans',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;}
+
+/* NAV */
+nav{background:var(--white);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:40;box-shadow:var(--sh);}
+.nav-in{max-width:1400px;margin:0 auto;padding:0 24px;height:60px;display:flex;align-items:center;gap:16px;}
+.brand{display:flex;align-items:center;gap:9px;flex-shrink:0;}
+.bmark{width:30px;height:30px;border-radius:7px;background:var(--accent);display:flex;align-items:center;justify-content:center;}
+.bmark svg{color:#fff;}
+.bname{font-weight:700;font-size:14.5px;letter-spacing:-.01em;}
+.bname em{font-family:'Instrument Serif',serif;font-style:italic;font-weight:400;color:var(--muted);margin-left:3px;}
+.sep{width:1px;height:26px;background:var(--border);flex-shrink:0;}
+.sbox{flex:1;max-width:540px;position:relative;}
+.sbox .si{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--faint);pointer-events:none;transition:color .15s;}
+.sbox:focus-within .si{color:var(--accent);}
+#q{width:100%;height:38px;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:0 32px 0 40px;font-family:'Instrument Sans',sans-serif;font-size:14px;color:var(--text);outline:none;transition:border-color .15s,background .15s,box-shadow .15s;}
+#q::placeholder{color:var(--faint);}
+#q:focus{background:#fff;border-color:var(--accent);box-shadow:0 0 0 3px rgba(26,107,58,.09);}
+#q:disabled{opacity:.4;cursor:not-allowed;}
+.clr{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--faint);width:20px;height:20px;border-radius:50%;display:none;align-items:center;justify-content:center;transition:background .15s,color .15s;}
+.clr:hover{background:var(--border);color:var(--text);}
+.clr.on{display:flex;}
+.nav-r{margin-left:auto;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.status{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--faint);flex-shrink:0;transition:background .3s;}
+.dot.ok{background:var(--accent);}
+.dot.err{background:var(--red);}
+.dot.spin{background:var(--amber);animation:blink 1s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+/* LAYOUT */
+.main{max-width:1400px;margin:0 auto;padding:24px 24px 72px;}
+.layout{display:flex;gap:20px;align-items:flex-start;}
+
+/* SIDEBAR */
+.sidebar{width:224px;flex-shrink:0;position:sticky;top:80px;display:flex;flex-direction:column;gap:14px;}
+.filter-card{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--sh);}
+.filter-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.filter-header h3{font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);}
+.btn-clear-all{font-size:11px;font-weight:600;color:var(--accent);background:none;border:none;cursor:pointer;padding:2px 0;display:none;}
+.btn-clear-all:hover{text-decoration:underline;}
+.btn-clear-all.visible{display:block;}
+.filter-section{padding:12px 16px;border-bottom:1px solid var(--border);}
+.filter-section:last-child{border-bottom:none;}
+.filter-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:8px;display:block;}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.toggle-row span{font-size:13px;font-weight:600;color:var(--text);}
+.toggle{position:relative;width:36px;height:20px;flex-shrink:0;}
+.toggle input{opacity:0;width:0;height:0;position:absolute;}
+.toggle-track{position:absolute;inset:0;background:var(--border-mid);border-radius:20px;cursor:pointer;transition:background .2s;}
+.toggle input:checked+.toggle-track{background:var(--accent);}
+.toggle-thumb{position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .2s;}
+.toggle input:checked~.toggle-thumb{transform:translateX(16px);}
+.filter-select{width:100%;height:34px;background:var(--bg);border:1.5px solid var(--border);border-radius:7px;padding:0 28px 0 10px;font-family:'Instrument Sans',sans-serif;font-size:12.5px;color:var(--text);outline:none;cursor:pointer;transition:border-color .15s;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23b4b4ae' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;}
+.filter-select:focus{border-color:var(--accent);background-color:#fff;}
+.filter-select:disabled{opacity:.4;cursor:not-allowed;}
+
+/* Source toggle pills */
+.source-pills{display:flex;flex-direction:column;gap:6px;}
+.src-pill{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);cursor:pointer;transition:all .15s;user-select:none;}
+.src-pill.dd{border-color:transparent;background:var(--dd-bg);}
+.src-pill.ts{border-color:transparent;background:var(--ts-bg);}
+.src-pill input{display:none;}
+.src-pill .pill-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.src-pill.dd .pill-dot{background:var(--dd);}
+.src-pill.ts .pill-dot{background:var(--ts);}
+.src-pill .pill-name{font-size:12.5px;font-weight:700;flex:1;}
+.src-pill.dd .pill-name{color:var(--dd);}
+.src-pill.ts .pill-name{color:var(--ts);}
+.src-pill .pill-count{font-size:11px;font-weight:600;color:var(--muted);}
+.src-pill.off{opacity:.45;filter:grayscale(.8);}
+.src-pill:hover:not(.off){opacity:.85;}
+
+/* Supplier upload cards */
+.upload-cards{display:flex;flex-direction:column;gap:10px;}
+.upload-card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:12px 14px;box-shadow:var(--sh);}
+.upload-card-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.uc-dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex-shrink:0;}
+.uc-dot.dd{background:var(--dd);}
+.uc-dot.ts{background:var(--ts);}
+.uc-name{font-size:12px;font-weight:700;color:var(--muted);}
+.uc-name.dd{color:var(--dd);}
+.uc-name.ts{color:var(--ts);}
+.uc-status{font-size:11px;color:var(--faint);margin-bottom:8px;min-height:14px;}
+.uc-status.ok{color:var(--accent);}
+.uc-status.err{color:var(--red);}
+.btn-uc{display:flex;align-items:center;justify-content:center;gap:6px;flex:1;height:32px;border-radius:7px;border:1.5px solid var(--border-mid);background:var(--bg);font-family:'Instrument Sans',sans-serif;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;transition:all .15s;}
+.btn-uc.dd:hover{border-color:var(--dd);color:var(--dd);background:var(--dd-bg);}
+.btn-uc.ts:hover{border-color:var(--ts);color:var(--ts);background:var(--ts-bg);}
+.btn-uc-wrap{display:flex;gap:6px;align-items:center;}
+.btn-uc-refresh{width:32px;height:32px;flex-shrink:0;border-radius:7px;border:1.5px solid var(--border-mid);background:var(--bg);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s;}
+.btn-uc-refresh.dd:hover{border-color:var(--dd);color:var(--dd);background:var(--dd-bg);}
+.btn-uc-refresh.ts:hover{border-color:var(--ts);color:var(--ts);background:var(--ts-bg);}
+
+/* Active filter tags */
+.active-filters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
+.atag{display:inline-flex;align-items:center;gap:5px;padding:3px 8px 3px 10px;background:var(--accent-bg);border:1px solid rgba(26,107,58,.2);border-radius:20px;font-size:11.5px;font-weight:600;color:var(--accent);}
+.atag button{background:none;border:none;cursor:pointer;color:var(--accent);display:flex;align-items:center;padding:0;opacity:.7;transition:opacity .15s;}
+.atag button:hover{opacity:1;}
+
+/* CONTENT */
+.content{flex:1;min-width:0;}
+.rbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+.rcount{font-size:13px;color:var(--muted);font-weight:500;}
+.rcount strong{color:var(--text);}
+.rmeta{font-size:11px;color:var(--faint);font-weight:500;margin-top:3px;}
+
+/* TABLE */
+.tcard{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--sh);}
+table{width:100%;border-collapse:collapse;font-size:13.5px;}
+thead tr{background:#fafaf8;border-bottom:1.5px solid var(--border);}
+th{padding:11px 14px;text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap;transition:color .15s;}
+th:hover{color:var(--text);}
+th.sorted{color:var(--accent);}
+th .arr{margin-left:3px;font-size:10px;}
+tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;}
+tbody tr:last-child{border-bottom:none;}
+tbody tr:hover{background:#fafaf8;}
+td{padding:11px 14px;vertical-align:middle;}
+.c-src{width:20px;padding-right:4px;}
+.src-badge{width:6px;height:6px;border-radius:50%;display:inline-block;flex-shrink:0;}
+.src-badge.dd{background:var(--dd);}
+.src-badge.ts{background:var(--ts);}
+.c-sku{font-size:11.5px;font-weight:700;color:var(--accent);white-space:nowrap;letter-spacing:.02em;}
+.c-desc{max-width:320px;line-height:1.4;font-weight:500;}
+.cat-tag{display:inline-block;padding:2px 8px;border-radius:20px;background:var(--bg);border:1px solid var(--border);font-size:10.5px;font-weight:600;color:var(--muted);white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;}
+.c-rrp{text-align:right;font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap;}
+.c-cost{text-align:right;font-size:13.5px;font-weight:700;color:var(--text);white-space:nowrap;}
+.c-supplier{white-space:nowrap;}
+.supplier-badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;}
+.supplier-badge.dd{background:var(--dd-bg);color:var(--dd);}
+.supplier-badge.ts{background:var(--ts-bg);color:var(--ts);}
+.sb{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;}
+.s-in{background:#eaf6ef;color:var(--accent);}
+.s-lo{background:#fff7e0;color:var(--amber);}
+.s-out{background:#fdeee9;color:var(--red);}
+.s-na{background:var(--bg);color:var(--faint);}
+mark{background:#fef3a0;border-radius:2px;padding:0 1px;font-weight:inherit;}
+.no-r{padding:52px 24px;text-align:center;color:var(--muted);}
+.no-r h3{font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;}
+
+/* DROP ZONE (first load) */
+#dropZone{border:2px dashed var(--border-mid);border-radius:16px;background:var(--white);padding:56px 24px;text-align:center;transition:border-color .2s,background .2s;}
+#dropZone.over{border-color:var(--accent);background:var(--accent-bg);}
+.dicon{width:56px;height:56px;border-radius:14px;background:var(--accent-bg);border:1.5px solid rgba(26,107,58,.15);display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;color:var(--accent);}
+#dropZone h2{font-size:20px;font-weight:700;margin-bottom:8px;}
+#dropZone p{font-size:14px;color:var(--muted);line-height:1.6;max-width:400px;margin:0 auto 22px;}
+.btn-up{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 22px;background:var(--accent);border:none;border-radius:8px;font-family:'Instrument Sans',sans-serif;font-size:14px;font-weight:700;color:#fff;cursor:pointer;transition:background .15s;}
+.btn-up:hover{background:var(--accent-dark);}
+
+/* HOME UPLOAD CARDS */
+.home-upload-cards{display:flex;gap:16px;justify-content:center;margin-bottom:20px;flex-wrap:wrap;}
+.home-upload-card{width:220px;background:var(--bg);border:2px solid var(--border);border-radius:14px;padding:20px;text-align:left;transition:border-color .2s,background .2s,box-shadow .2s;}
+.home-upload-card.dd{border-color:rgba(26,74,138,.2);}
+.home-upload-card.ts{border-color:rgba(123,47,160,.2);}
+.home-upload-card.dd:hover{border-color:var(--dd);background:var(--dd-bg);box-shadow:var(--sh);}
+.home-upload-card.ts:hover{border-color:var(--ts);background:var(--ts-bg);box-shadow:var(--sh);}
+.home-upload-card.loaded.dd{border-color:var(--dd);background:var(--dd-bg);}
+.home-upload-card.loaded.ts{border-color:var(--ts);background:var(--ts-bg);}
+.huc-header{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.huc-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.huc-dot.dd{background:var(--dd);}
+.huc-dot.ts{background:var(--ts);}
+.huc-name{font-size:13.5px;font-weight:700;}
+.huc-name.dd{color:var(--dd);}
+.huc-name.ts{color:var(--ts);}
+.huc-desc{font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.4;}
+.huc-status{font-size:11.5px;font-weight:600;color:var(--accent);margin-bottom:10px;min-height:16px;}
+.huc-status.ok{color:var(--accent);}
+.huc-status.err{color:var(--red);}
+.huc-btn{display:flex;align-items:center;gap:6px;width:100%;height:34px;border-radius:7px;border:none;font-family:'Instrument Sans',sans-serif;font-size:12.5px;font-weight:700;color:#fff;cursor:pointer;justify-content:center;transition:opacity .15s;}
+.huc-btn.dd{background:var(--dd);}
+.huc-btn.ts{background:var(--ts);}
+.huc-btn:hover{opacity:.85;}
+.home-upload-card.needs-manual.dd{border-color:var(--dd);background:var(--dd-bg);}
+.home-upload-card.needs-manual.ts{border-color:var(--ts);background:var(--ts-bg);}
+.home-upload-card.needs-manual .huc-btn{opacity:1;animation:pulse-border 1.5s ease-in-out infinite;}
+@keyframes pulse-border{0%,100%{box-shadow:none;}50%{box-shadow:0 0 0 3px rgba(26,74,138,.2);}}
+.home-upload-card.needs-manual.ts .huc-btn{animation:pulse-border-ts 1.5s ease-in-out infinite;}
+@keyframes pulse-border-ts{0%,100%{box-shadow:none;}50%{box-shadow:0 0 0 3px rgba(123,47,160,.2);}}
+.home-or{font-size:12px;color:var(--faint);margin:4px 0 16px;font-weight:500;}
+.home-drag-hint{display:none;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:8px;}
+.home-drag-hint span{font-size:13px;font-weight:600;color:var(--muted);}
+.drag-choose{height:34px;padding:0 16px;border-radius:7px;border:none;font-family:'Instrument Sans',sans-serif;font-size:12.5px;font-weight:700;color:#fff;cursor:pointer;}
+.drag-choose.dd{background:var(--dd);}
+.drag-choose.ts{background:var(--ts);}
+.drag-cancel{height:34px;padding:0 14px;border-radius:7px;border:1.5px solid var(--border-mid);background:var(--white);font-family:'Instrument Sans',sans-serif;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;}
+.home-go{display:none;align-items:center;gap:8px;height:44px;padding:0 28px;background:var(--accent);border:none;border-radius:9px;font-family:'Instrument Sans',sans-serif;font-size:15px;font-weight:700;color:#fff;cursor:pointer;margin-top:20px;transition:background .15s;}
+.home-go:hover{background:var(--accent-dark);}
+/* PAGER */
+.pager{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-top:1px solid var(--border);background:#fafaf8;flex-wrap:wrap;gap:8px;}
+.pinfo{font-size:12px;color:var(--muted);font-weight:500;}
+.pbtns{display:flex;gap:3px;}
+.pg{height:30px;min-width:30px;padding:0 7px;background:var(--white);border:1px solid var(--border);border-radius:6px;font-family:'Instrument Sans',sans-serif;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s;}
+.pg:hover:not(:disabled):not(.on){border-color:var(--border-mid);color:var(--text);}
+.pg.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+.pg:disabled{opacity:.28;cursor:default;}
+
+/* MODAL */
+.ov{display:none;position:fixed;inset:0;background:rgba(16,16,14,.42);z-index:200;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(3px);}
+.ov.open{display:flex;}
+.modal{background:var(--white);border-radius:16px;max-width:600px;width:100%;box-shadow:var(--sh-lg);overflow:hidden;animation:pop .17s cubic-bezier(.34,1.56,.64,1);}
+@keyframes pop{from{transform:scale(.95) translateY(8px);opacity:0;}to{transform:scale(1) translateY(0);opacity:1;}}
+.mh{padding:20px 22px 16px;border-bottom:1px solid var(--border);position:relative;}
+.mh-top{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.mh-sku{font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--accent);}
+.msrc{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;}
+.msrc.dd{background:var(--dd-bg);color:var(--dd);}
+.msrc.ts{background:var(--ts-bg);color:var(--ts);}
+.mh-title{font-size:16px;font-weight:700;line-height:1.35;padding-right:38px;color:var(--text);}
+.mclose{position:absolute;top:18px;right:18px;width:30px;height:30px;border-radius:7px;background:var(--bg);border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;transition:all .15s;}
+.mclose:hover{background:var(--border);color:var(--text);}
+.mb{padding:16px 22px 8px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+.mf-wide{grid-column:1/-1;}
+.mf label{display:block;font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--faint);margin-bottom:5px;}
+.mf .v{font-size:14px;font-weight:700;color:var(--text);}
+.mf .big{font-size:22px;}
+.mf .green{color:var(--accent);}
+.mf .red{color:var(--red);}
+.mf .desc-val{font-size:14px;font-weight:500;line-height:1.5;}
+.mfoot{padding:14px 22px;border-top:1px solid var(--border);background:#fafaf8;display:flex;gap:8px;}
+.btn-s{flex:1;height:36px;border-radius:7px;border:1.5px solid var(--border-mid);background:var(--white);font-family:'Instrument Sans',sans-serif;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer;transition:all .15s;}
+.btn-s:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-bg);}
+.btn-s.done{border-color:var(--accent);color:var(--accent);background:var(--accent-bg);}
+
+@media(max-width:960px){.sidebar{width:190px;}}
+@media(max-width:760px){.sidebar{display:none;}.layout{display:block;}}
+@media(max-width:560px){.nav-in{padding:0 14px;}.bname em{display:none;}.main{padding:14px 14px 56px;}.mb{grid-template-columns:1fr 1fr;}}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-in">
+    <div class="brand">
+      <div class="bmark">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+          <path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+        </svg>
+      </div>
+      <div class="bname">entconn <em>Inventory Search</em></div>
+    </div>
+    <div class="sep"></div>
+    <div class="sbox">
+      <svg class="si" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input id="q" type="text" placeholder="Load a file to begin…" disabled>
+      <button class="clr" id="clr" tabindex="-1">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="nav-r">
+      <div class="status"><div class="dot" id="dot"></div><span id="stxt">No files loaded</span></div>
+    </div>
+  </div>
+</nav>
+
+<main class="main">
+
+  <!-- Initial drop zone shown before any file is loaded -->
+  <div id="dropZone">
+    <div class="dicon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+      </svg>
+    </div>
+    <h2>Loading price lists…</h2>
+    <p>Fetching the latest price lists from Google Sheets. This usually takes a few seconds.</p>
+    <div class="home-upload-cards">
+      <div class="home-upload-card dd" id="huc-dd">
+        <div class="huc-header">
+          <div class="huc-dot dd"></div>
+          <div class="huc-name dd">Dicker Data</div>
+        </div>
+        <div class="huc-desc">Auto-loading from Google Sheets…</div>
+        <div class="huc-status" id="huc-dd-status">Connecting…</div>
+        <label class="huc-btn dd" for="fin-dd">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Upload manually instead
+        </label>
+      </div>
+      <div class="home-upload-card ts" id="huc-ts">
+        <div class="huc-header">
+          <div class="huc-dot ts"></div>
+          <div class="huc-name ts">Telstra Supplier</div>
+        </div>
+        <div class="huc-desc">Auto-loading from Google Sheets…</div>
+        <div class="huc-status" id="huc-ts-status">Connecting…</div>
+        <label class="huc-btn ts" for="fin-ts">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Upload manually instead
+        </label>
+      </div>
+    </div>
+    <div class="home-or">— or drag a file anywhere onto this page —</div>
+    <div class="home-drag-hint" id="homeDragHint" style="display:none">
+      <span>Drop as:</span>
+      <button class="drag-choose dd" id="dragChoiceDD">Dicker Data</button>
+      <button class="drag-choose ts" id="dragChoiceTS">Telstra Supplier</button>
+      <button class="drag-cancel" id="dragCancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Main layout: sidebar + content -->
+  <div class="layout" id="mainLayout" style="display:none">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+      <!-- Supplier file upload cards -->
+      <div class="upload-cards">
+        <div class="upload-card">
+          <div class="upload-card-head">
+            <div class="uc-dot dd"></div>
+            <div class="uc-name dd">Dicker Data</div>
+          </div>
+          <div class="uc-status" id="dd-status">Not loaded</div>
+          <div class="btn-uc-wrap">
+          <label class="btn-uc dd" for="fin-dd">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Load CSV / XLSX
+          </label>
+          <button class="btn-uc-refresh dd" onclick="fetchSource('dd').then(ok => { if(ok) mergeAndShow('Google Sheets'); })" title="Re-fetch from Google Sheets">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+          </button>
+          </div>
+        </div>
+        <div class="upload-card">
+          <div class="upload-card-head">
+            <div class="uc-dot ts"></div>
+            <div class="uc-name ts">Telstra Supplier</div>
+          </div>
+          <div class="uc-status" id="ts-status">Not loaded</div>
+          <div class="btn-uc-wrap">
+          <label class="btn-uc ts" for="fin-ts">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Load XLSX / CSV
+          </label>
+          <button class="btn-uc-refresh ts" onclick="fetchSource('ts').then(ok => { if(ok) mergeAndShow('Google Sheets'); })" title="Re-fetch from Google Sheets">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+          </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Source visibility toggles -->
+      <div class="filter-card" id="srcFilterCard" style="display:none">
+        <div class="filter-header"><h3>Sources</h3></div>
+        <div class="filter-section">
+          <div class="source-pills" id="srcPills"></div>
+        </div>
+      </div>
+
+      <!-- Category filters -->
+      <div class="filter-card">
+        <div class="filter-header">
+          <h3>Filters</h3>
+          <button class="btn-clear-all" id="btnClearAll">Clear all</button>
+        </div>
+        <div class="filter-section">
+          <span class="filter-label">Availability</span>
+          <div class="toggle-row">
+            <span>In Stock Only</span>
+            <label class="toggle">
+              <input type="checkbox" id="stockToggle">
+              <div class="toggle-track"></div>
+              <div class="toggle-thumb"></div>
+            </label>
+          </div>
+        </div>
+        <div class="filter-section">
+          <span class="filter-label">Category</span>
+          <select class="filter-select" id="selPrimary"><option value="">All categories</option></select>
+        </div>
+        <div class="filter-section">
+          <span class="filter-label">Sub-category</span>
+          <select class="filter-select" id="selSecondary" disabled><option value="">All sub-categories</option></select>
+        </div>
+        <div class="filter-section">
+          <span class="filter-label">Product Type</span>
+          <select class="filter-select" id="selTertiary" disabled><option value="">All types</option></select>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CONTENT -->
+    <div class="content">
+      <div class="rbar">
+        <div>
+          <div class="rcount" id="rcount"></div>
+          <div class="rmeta" id="rmeta"></div>
+        </div>
+      </div>
+      <div class="active-filters" id="activeTags"></div>
+      <div class="tcard">
+        <table>
+          <thead>
+            <tr>
+              <th class="c-src" title="Source"></th>
+              <th data-col="sku">SKU <span class="arr">↕</span></th>
+              <th data-col="description">Description <span class="arr">↕</span></th>
+              <th data-col="category">Category <span class="arr">↕</span></th>
+              <th data-col="rrp" style="text-align:right">RRP (ex. GST) <span class="arr">↕</span></th>
+              <th data-col="price" style="text-align:right">Cost (ex. GST) <span class="arr">↕</span></th>
+              <th data-col="stock" style="text-align:center">Stock <span class="arr">↕</span></th>
+              <th data-col="supplier">Supplier <span class="arr">↕</span></th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+        <div class="pager">
+          <div class="pinfo" id="pinfo"></div>
+          <div class="pbtns" id="pbtns"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- hidden file inputs -->
+<input type="file" id="fin-dd" accept=".csv,.xlsx,.xls" style="display:none">
+<input type="file" id="fin-ts" accept=".xlsx,.xls,.csv" style="display:none">
+
+<!-- MODAL -->
+<div class="ov" id="ov">
+  <div class="modal">
+    <div class="mh">
+      <div class="mh-top">
+        <div class="mh-sku" id="mSku"></div>
+        <div class="msrc" id="mSrc"></div>
+      </div>
+      <div class="mh-title" id="mTitle"></div>
+      <button class="mclose" id="mclose">✕</button>
+    </div>
+    <div class="mb">
+      <div class="mf mf-wide"><label>Description</label><div class="v desc-val" id="mDesc"></div></div>
+      <div class="mf"><label>Category</label><div class="v" id="mCat"></div></div>
+      <div class="mf"><label>RRP (ex. GST)</label><div class="v big red" id="mRrp"></div></div>
+      <div class="mf"><label>Cost (ex. GST)</label><div class="v big green" id="mPrice"></div></div>
+      <div class="mf"><label>Stock Available</label><div class="v" id="mStock"></div></div>
+      <div class="mf"><label>Margin</label><div class="v" id="mMargin"></div></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn-s" id="bSku">Copy SKU</button>
+      <button class="btn-s" id="bRow">Copy Full Row</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let DICKER = [];   // Dicker Data products
+let TELSTRA = [];  // Telstra/entconn products
+let ALL = [];      // merged
+let filtered = [], curPage = 1, sortCol = null, sortDir = 'asc', activeItem = null;
+const PAGE = 50;
+
+let fPrimary = '', fSecondary = '', fTertiary = '', fInStock = false;
+let srcDD = true, srcTS = true;  // source visibility
+
+// ─── File sources via Cloudflare Worker ───────────────────────────────────────
+// Fetches via your own Cloudflare Worker which proxies Google Sheets CSV exports.
+// This bypasses SharePoint's CSP which blocks direct requests to external domains.
+const SOURCES = {
+  dd: {
+    url: 'https://pricelist.charlie-2e0.workers.dev/dd',
+    label: 'Dicker Data'
+  },
+  ts: {
+    url: 'https://pricelist.charlie-2e0.workers.dev/ts',
+    label: 'Telstra Supplier'
+  }
+};
+
+function setSourceStatus(source, msg, cls) {
+  const homeEl = document.getElementById(`huc-${source}-status`);
+  const sideEl = document.getElementById(`${source}-status`);
+  if(homeEl) { homeEl.textContent = msg; homeEl.className = 'huc-status ' + cls; }
+  if(sideEl) { sideEl.textContent = msg; sideEl.className  = 'uc-status '  + cls; }
+}
+
+async function fetchSource(source) {
+  const cfg = SOURCES[source];
+  setSourceStatus(source, 'Fetching…', '');
+  setDot('spin'); setTxt('Loading files…');
+
+  try {
+    console.log(`[${source}] Fetching from worker: ${cfg.url}`);
+    const resp = await fetch(cfg.url);
+    console.log(`[${source}] HTTP ${resp.status} | Content-Type: ${resp.headers.get('content-type')}`);
+
+    if(!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+
+    const text = await resp.text();
+    if(!text || text.length < 100) throw new Error('Response too short — sheet may be empty');
+    if(text.trimStart().startsWith('<')) throw new Error('Got HTML — check sheet is shared publicly');
+
+    console.log(`[${source}] Got ${text.length.toLocaleString()} chars, parsing…`);
+    const clean = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
+    const rows = parseCSV(clean);
+
+    const products = source === 'ts' ? parseTelstra(rows) : parseDicker(rows);
+    if(!products.length) throw new Error('0 products parsed — check sheet columns');
+
+    if(source === 'dd') {
+      DICKER = products;
+      document.getElementById('huc-dd')?.classList.add('loaded');
+      document.getElementById('huc-dd')?.classList.remove('needs-manual');
+    } else {
+      TELSTRA = products;
+      document.getElementById('huc-ts')?.classList.add('loaded');
+      document.getElementById('huc-ts')?.classList.remove('needs-manual');
+    }
+
+    const time = new Date().toLocaleTimeString('en-AU', { hour:'2-digit', minute:'2-digit' });
+    setSourceStatus(source, `✓ ${products.length.toLocaleString()} products · ${time}`, 'ok');
+    console.log(`[${source}] ✓ ${products.length} products loaded`);
+    return true;
+
+  } catch(e) {
+    console.error(`[${source}] Failed:`, e.message);
+    setSourceStatus(source, `⚠ ${e.message.slice(0, 55)}`, 'err');
+    document.getElementById(`huc-${source}`)?.classList.add('needs-manual');
+    return false;
+  }
+}
+
+// Auto-fetch — each source loads independently and shows results as soon as it's ready
+async function autoFetch() {
+  let anyLoaded = false;
+
+  async function loadOne(source) {
+    const ok = await fetchSource(source);
+    if(ok) {
+      anyLoaded = true;
+      mergeAndShow('auto'); // re-render immediately with whatever is loaded so far
+    }
+  }
+
+  // Fire both fetches simultaneously — each updates the UI as soon as it finishes
+  await Promise.all([loadOne('dd'), loadOne('ts')]);
+
+  if(!anyLoaded) {
+    setDot('err');
+    setTxt('Auto-load failed — upload files manually');
+  }
+}
+
+// Kick off once SheetJS is ready
+if(typeof XLSX !== 'undefined') {
+  autoFetch();
+} else {
+  document.querySelector('script[src*="xlsx"]').addEventListener('load', autoFetch);
+}
+
+// ─── File inputs (manual upload fallback) ────────────────────────────────────
+document.getElementById('fin-dd').addEventListener('change', e => {
+  if(e.target.files[0]) loadFile(e.target.files[0], 'dd');
+});
+document.getElementById('fin-ts').addEventListener('change', e => {
+  if(e.target.files[0]) loadFile(e.target.files[0], 'ts');
+});
+
+// drag-drop on whole window
+let pendingDropFile = null;
+window.addEventListener('dragover', e => { e.preventDefault(); document.getElementById('dropZone').classList.add('over'); });
+window.addEventListener('dragleave', e => { if(!e.relatedTarget) document.getElementById('dropZone').classList.remove('over'); });
+window.addEventListener('drop', e => {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  if(!f) return;
+  // If we're already in results view (both or one loaded), auto-detect by filename
+  if(document.getElementById('mainLayout').style.display !== 'none') {
+    const name = f.name.toLowerCase();
+    const source = (name.includes('telstra') || name.includes('soh') || name.includes('inventory')) ? 'ts' : 'dd';
+    loadFile(f, source);
+    return;
+  }
+  // On home screen: show the chooser
+  pendingDropFile = f;
+  const hint = document.getElementById('homeDragHint');
+  hint.style.display = 'flex';
+  hint.querySelector('#dragChoiceDD').onclick = () => { hint.style.display='none'; loadFile(pendingDropFile,'dd'); pendingDropFile=null; };
+  hint.querySelector('#dragChoiceTS').onclick = () => { hint.style.display='none'; loadFile(pendingDropFile,'ts'); pendingDropFile=null; };
+  hint.querySelector('#dragCancel').onclick  = () => { hint.style.display='none'; pendingDropFile=null; };
+});
+
+// ─── Load file ────────────────────────────────────────────────────────────────
+function loadFile(file, source) {
+  setDot('spin'); setTxt('Reading…');
+  const ext = file.name.split('.').pop().toLowerCase();
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      let rows;
+      if(ext === 'csv') {
+        let text = ev.target.result;
+        if(text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+        rows = parseCSV(text);
+      } else {
+        const wb = XLSX.read(new Uint8Array(ev.target.result), {type:'array', raw:false});
+        if(source === 'ts') {
+          // Use 'SOH Report' sheet only — ignore 'Obsolete Stock Info' and any other sheets
+          const sheetName = wb.SheetNames.find(n => n === 'SOH Report') ||
+                            wb.SheetNames.find(n => n.toLowerCase().includes('soh')) ||
+                            wb.SheetNames.find(n => n.toLowerCase().includes('stock on hand')) ||
+                            wb.SheetNames[0];
+          console.log('Telstra: using sheet:', sheetName, '| all sheets:', wb.SheetNames);
+          const ws = wb.Sheets[sheetName];
+          rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true});
+        } else {
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:false});
+        }
+      }
+      const products = source === 'ts' ? parseTelstra(rows) : parseDicker(rows);
+      console.log(`Loaded ${source}: ${products.length} products`);
+      if(!products.length) {
+        throw new Error('No products found. Headers detected: ' + (rows[0]||[]).slice(0,10).join(', '));
+      }
+      if(source === 'dd') {
+        DICKER = products;
+        const el = document.getElementById('dd-status');
+        el.textContent = '✓ ' + products.length.toLocaleString() + ' products';
+        el.className = 'uc-status ok';
+        const hel = document.getElementById('huc-dd-status');
+        if(hel){ hel.textContent = '✓ ' + products.length.toLocaleString() + ' products loaded'; hel.className='huc-status ok'; }
+        document.getElementById('huc-dd').classList.add('loaded');
+      } else {
+        TELSTRA = products;
+        const el = document.getElementById('ts-status');
+        el.textContent = '✓ ' + products.length.toLocaleString() + ' products';
+        el.className = 'uc-status ok';
+        const hel = document.getElementById('huc-ts-status');
+        if(hel){ hel.textContent = '✓ ' + products.length.toLocaleString() + ' products loaded'; hel.className='huc-status ok'; }
+        document.getElementById('huc-ts').classList.add('loaded');
+      }
+      mergeAndShow(file.name);
+    } catch(err) {
+      console.error(err);
+      setDot('err'); setTxt('Error');
+      const el = document.getElementById(source === 'dd' ? 'dd-status' : 'ts-status');
+      el.textContent = '✗ ' + err.message.slice(0, 60);
+      el.className = 'uc-status err';
+      if(!ALL.length) alert('Could not read file:\n' + err.message);
+    }
+  };
+  if(ext === 'csv') reader.readAsText(file, 'utf-8');
+  else reader.readAsArrayBuffer(file);
+}
+
+function mergeAndShow(trigger) {
+  ALL = [...DICKER, ...TELSTRA];
+  buildSrcPills();
+
+  const isFirstLoad = document.getElementById('mainLayout').style.display === 'none';
+
+  if(isFirstLoad) {
+    // First source to load — transition to results and reset everything
+    buildCategorySelects();
+    resetFilters();
+    document.getElementById('dropZone').style.display = 'none';
+    document.getElementById('mainLayout').style.display = 'flex';
+    document.getElementById('q').focus();
+  } else {
+    // Second source loaded in background — rebuild categories but preserve current search/filters
+    buildCategorySelects();
+  }
+
+  const bothLoaded = DICKER.length && TELSTRA.length;
+  setDot(bothLoaded ? 'ok' : 'spin');
+  const parts = [];
+  if(DICKER.length) parts.push('Dicker: ' + DICKER.length.toLocaleString());
+  if(TELSTRA.length) parts.push('Telstra: ' + TELSTRA.length.toLocaleString());
+  setTxt(bothLoaded ? ALL.length.toLocaleString() + ' total' : ALL.length.toLocaleString() + ' loaded — fetching more…');
+  document.getElementById('rmeta').textContent = parts.join('  ·  ') + '  ·  ' + new Date().toLocaleTimeString('en-AU', {hour:'2-digit',minute:'2-digit'});
+  const q = document.getElementById('q');
+  q.disabled = false;
+  q.placeholder = 'Search ' + ALL.length.toLocaleString() + ' products…';
+  doFilter();
+}
+
+// ─── Parse Dicker Data ────────────────────────────────────────────────────────
+// Columns: StockCode, Vendor, VendorStockCode(C=2), StockDescription(D=3),
+//          PrimaryCategory(E=4), Secondary(F=5), Tertiary(G=6),
+//          RRPEx(H=7), DealerEx(I=8), StockAvailable(J=9)
+function parseDicker(rows) {
+  // Find header row — look for any cell containing these key column names
+  let hi = 0;
+  for(let i = 0; i < Math.min(20, rows.length); i++) {
+    const joined = rows[i].map(c => String(c).trim()).join('|').toLowerCase();
+    if(joined.includes('vendorstockcode') || joined.includes('dealerex') || joined.includes('stockdescription')) {
+      hi = i; break;
+    }
+  }
+  const hdrs = rows[hi].map(c => String(c).trim());
+  const gi = (name, fallback) => {
+    // Exact match first, then case-insensitive
+    let idx = hdrs.indexOf(name);
+    if(idx < 0) idx = hdrs.findIndex(h => h.toLowerCase() === name.toLowerCase());
+    return idx >= 0 ? idx : fallback;
+  };
+  const idx = {
+    sku: gi('VendorStockCode', 2), desc: gi('StockDescription', 3),
+    primary: gi('PrimaryCategory', 4), secondary: gi('SecondaryCategory', 5),
+    tertiary: gi('TertiaryCategory', 6), rrp: gi('RRPEx', 7),
+    price: gi('DealerEx', 8), stock: gi('StockAvailable', 9)
+  };
+  const toNum = v => { const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, '')); return isNaN(n) ? null : n; };
+  return rows.slice(hi + 1).filter(r => r && r.length > 2).map(r => {
+    const sku = String(r[idx.sku] ?? '').trim();
+    const desc = String(r[idx.desc] ?? '').trim();
+    if(!sku && !desc) return null;
+    const rawStock = String(r[idx.stock] ?? '').trim();
+    const numStock = parseInt(rawStock, 10);
+    const stock = isNaN(numStock) ? null : numStock >= 999999 ? 'In Stock' : numStock;
+    return {
+      source: 'dd', sku, description: desc,
+      category:  String(r[idx.primary]   ?? '').trim(),
+      secondary: String(r[idx.secondary] ?? '').trim(),
+      tertiary:  String(r[idx.tertiary]  ?? '').trim(),
+      rrp: toNum(r[idx.rrp]), price: toNum(r[idx.price]), stock
+    };
+  }).filter(Boolean);
+}
+
+// ─── Parse Telstra / entconn Inventory ───────────────────────────────────────
+// Sheet: 'SOH Report' (Obsolete Stock Info is ignored)
+// Columns (0-indexed):
+//   A=0  PRODUCT CATEGORY  → category
+//   B=1  UPOS              → SKU
+//   D=3  Item Description  → description
+//   E=4  SOH Range         → stock (text like '<100', '>5000', '0')
+//   J=9  RRP               → rrp
+// No cost price → null
+// Secondary → 'Telstra Supplier' for all
+// Tertiary  → '' for all
+function parseTelstra(rows) {
+  // Find header row (look for 'UPOS' or 'Item Description')
+  let hi = 0;
+  for(let i = 0; i < Math.min(20, rows.length); i++) {
+    const joined = rows[i].map(c => String(c??'').toLowerCase()).join('|');
+    if(joined.includes('upos') || joined.includes('item description') || joined.includes('product category')) {
+      hi = i; break;
+    }
+  }
+  console.log('Telstra header row:', hi, rows[hi]);
+  const toNum = v => { const n = parseFloat(String(v??'').replace(/[^\d.\-]/g,'')); return isNaN(n)?null:n; };
+
+  // Map stock range strings to a display value
+  function parseStock(raw) {
+    const s = String(raw??'').trim();
+    if(s === '' || s === 'null') return null;
+    if(s === '0' || s === 0) return 0;
+    if(s === '>5000') return 'In Stock';   // effectively unlimited
+    // Range strings like '<100', '<500', '<=5000' — keep as-is for display
+    if(s.startsWith('<') || s.startsWith('>') || s.startsWith('=')) return s;
+    const n = parseInt(s, 10);
+    return isNaN(n) ? s : n;
+  }
+
+  const products = [];
+  for(let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if(!r || r.length < 2) continue;
+    const sku  = String(r[1]??'').trim();   // Column B: UPOS
+    const desc = String(r[3]??'').trim();   // Column D: Item Description
+    if(!sku && !desc) continue;
+    const category = String(r[0]??'').trim(); // Column A: PRODUCT CATEGORY
+    const rrp   = toNum(r[9]);                // Column J: RRP
+    const stock = parseStock(r[4]);           // Column E: SOH Range
+    products.push({
+      source: 'ts', sku, description: desc,
+      category: category || 'Telstra Supplier',
+      secondary: 'Telstra Supplier',
+      tertiary: '',
+      rrp, price: null, stock
+    });
+  }
+  return products;
+}
+
+// ─── CSV parser ───────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  return text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').map(line => {
+    const row=[]; let cur='',q=false;
+    for(let i=0;i<line.length;i++){
+      const c=line[i];
+      if(c==='"'){if(q&&line[i+1]==='"'){cur+='"';i++;}else q=!q;}
+      else if(c===','&&!q){row.push(cur.trim());cur='';}
+      else cur+=c;
+    }
+    row.push(cur.trim()); return row;
+  }).filter(r=>r.some(c=>c!==''));
+}
+
+// ─── Source pills ─────────────────────────────────────────────────────────────
+function buildSrcPills() {
+  const card = document.getElementById('srcFilterCard');
+  const container = document.getElementById('srcPills');
+  if(!DICKER.length || !TELSTRA.length) { card.style.display='none'; return; }
+  card.style.display='';
+  container.innerHTML = '';
+  const mkPill = (id, cls, name, count, active) => {
+    const p = document.createElement('label');
+    p.className = 'src-pill ' + cls + (active?'':' off');
+    p.innerHTML = `<input type="checkbox" ${active?'checked':''}>
+      <div class="pill-dot"></div>
+      <div class="pill-name">${name}</div>
+      <div class="pill-count">${count.toLocaleString()}</div>`;
+    p.querySelector('input').addEventListener('change', function() {
+      if(id==='dd') srcDD=this.checked; else srcTS=this.checked;
+      p.classList.toggle('off', !this.checked);
+      doFilter();
+    });
+    container.appendChild(p);
+  };
+  mkPill('dd','dd','Dicker Data', DICKER.length, srcDD);
+  mkPill('ts','ts','Telstra', TELSTRA.length, srcTS);
+}
+
+// ─── Smart category selects ───────────────────────────────────────────────────
+function buildCategorySelects() { rebuildSelects(ALL); }
+
+function rebuildSelects(pool) {
+  const primaries = new Set(), secondaries = new Set(), tertiaries = new Set();
+  pool.forEach(p => {
+    if(p.category) primaries.add(p.category);
+    if(!fPrimary || p.category === fPrimary) {
+      if(p.secondary) secondaries.add(p.secondary);
+    }
+    if((!fPrimary||p.category===fPrimary) && (!fSecondary||p.secondary===fSecondary)) {
+      if(p.tertiary && p.tertiary !== '#N/A' && p.tertiary !== '0') tertiaries.add(p.tertiary);
+    }
+  });
+  const cnt = (pool, pred) => pool.filter(pred).length;
+
+  const selP = document.getElementById('selPrimary');
+  const prevP = fPrimary;
+  selP.innerHTML = '<option value="">All categories</option>';
+  [...primaries].sort().forEach(v => {
+    const o = document.createElement('option'); o.value = v;
+    o.textContent = v + ' (' + cnt(pool, p => p.category===v).toLocaleString() + ')';
+    selP.appendChild(o);
+  });
+  if(prevP && primaries.has(prevP)) selP.value = prevP;
+  else if(prevP) { fPrimary=''; selP.value=''; }
+
+  const selS = document.getElementById('selSecondary');
+  const prevS = fSecondary;
+  selS.innerHTML = '<option value="">All sub-categories</option>';
+  if(secondaries.size > 0) {
+    [...secondaries].sort().forEach(v => {
+      const o = document.createElement('option'); o.value = v;
+      o.textContent = v + ' (' + cnt(pool, p=>(!fPrimary||p.category===fPrimary)&&p.secondary===v).toLocaleString() + ')';
+      selS.appendChild(o);
+    });
+    selS.disabled = false;
+  } else { selS.disabled = true; }
+  if(prevS && secondaries.has(prevS)) selS.value = prevS;
+  else if(prevS) { fSecondary=''; selS.value=''; }
+
+  const selT = document.getElementById('selTertiary');
+  const prevT = fTertiary;
+  selT.innerHTML = '<option value="">All types</option>';
+  if(tertiaries.size > 0) {
+    [...tertiaries].sort().forEach(v => {
+      const o = document.createElement('option'); o.value = v;
+      o.textContent = v + ' (' + cnt(pool, p=>(!fPrimary||p.category===fPrimary)&&(!fSecondary||p.secondary===fSecondary)&&p.tertiary===v).toLocaleString() + ')';
+      selT.appendChild(o);
+    });
+    selT.disabled = false;
+  } else { selT.disabled = true; }
+  if(prevT && tertiaries.has(prevT)) selT.value = prevT;
+  else if(prevT) { fTertiary=''; selT.value=''; }
+}
+
+// ─── Filter controls ──────────────────────────────────────────────────────────
+document.getElementById('selPrimary').addEventListener('change', function() {
+  fPrimary=this.value; fSecondary=''; fTertiary='';
+  document.getElementById('selSecondary').value='';
+  document.getElementById('selTertiary').value='';
+  doFilter(); updateTags();
+});
+document.getElementById('selSecondary').addEventListener('change', function() {
+  fSecondary=this.value; fTertiary='';
+  document.getElementById('selTertiary').value='';
+  doFilter(); updateTags();
+});
+document.getElementById('selTertiary').addEventListener('change', function() {
+  fTertiary=this.value; doFilter(); updateTags();
+});
+document.getElementById('stockToggle').addEventListener('change', function() {
+  fInStock=this.checked; doFilter(); updateTags();
+});
+document.getElementById('btnClearAll').addEventListener('click', () => {
+  resetFilters(); doFilter(); updateTags();
+});
+function resetFilters() {
+  fPrimary=''; fSecondary=''; fTertiary=''; fInStock=false;
+  document.getElementById('selPrimary').value='';
+  document.getElementById('selSecondary').value='';
+  document.getElementById('selTertiary').value='';
+  document.getElementById('stockToggle').checked=false;
+}
+function updateTags() {
+  const c = document.getElementById('activeTags'); c.innerHTML='';
+  const has = fPrimary||fSecondary||fTertiary||fInStock;
+  document.getElementById('btnClearAll').classList.toggle('visible', !!has);
+  if(!has) return;
+  const mk = (lbl, fn) => {
+    const t = document.createElement('div'); t.className='atag';
+    t.innerHTML=`${xe(lbl)}<button><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
+    t.querySelector('button').addEventListener('click', fn);
+    c.appendChild(t);
+  };
+  if(fInStock) mk('In Stock Only', ()=>{fInStock=false;document.getElementById('stockToggle').checked=false;doFilter();updateTags();});
+  if(fPrimary) mk(fPrimary, ()=>{fPrimary='';fSecondary='';fTertiary='';document.getElementById('selPrimary').value='';document.getElementById('selSecondary').value='';document.getElementById('selTertiary').value='';doFilter();updateTags();});
+  if(fSecondary) mk(fSecondary, ()=>{fSecondary='';fTertiary='';document.getElementById('selSecondary').value='';document.getElementById('selTertiary').value='';doFilter();updateTags();});
+  if(fTertiary) mk(fTertiary, ()=>{fTertiary='';document.getElementById('selTertiary').value='';doFilter();updateTags();});
+}
+
+// ─── Search ───────────────────────────────────────────────────────────────────
+let stimer;
+document.getElementById('q').addEventListener('input', function() {
+  document.getElementById('clr').classList.toggle('on', this.value.length>0);
+  clearTimeout(stimer); stimer=setTimeout(doFilter, 120);
+});
+document.getElementById('clr').addEventListener('click', ()=>{
+  const q=document.getElementById('q'); q.value='';
+  document.getElementById('clr').classList.remove('on');
+  doFilter(); q.focus();
+});
+
+// ─── Main filter function ─────────────────────────────────────────────────────
+function doFilter() {
+  const raw = document.getElementById('q').value.trim().toLowerCase();
+  const words = raw.split(/\s+/).filter(Boolean);
+
+  // Step 1: source filter + text match → smart dropdown pool
+  const srcPool = ALL.filter(p => (p.source==='dd'?srcDD:srcTS));
+  const textPool = words.length
+    ? srcPool.filter(p => words.every(w =>
+        p.sku.toLowerCase().includes(w) ||
+        p.description.toLowerCase().includes(w) ||
+        p.category.toLowerCase().includes(w) ||
+        p.secondary.toLowerCase().includes(w) ||
+        p.tertiary.toLowerCase().includes(w)
+      ))
+    : srcPool;
+
+  // Step 2: rebuild dropdowns from text-matched pool
+  rebuildSelects(textPool);
+
+  // Step 3: apply category + stock filters
+  filtered = textPool.filter(p => {
+    if(fPrimary   && p.category  !== fPrimary)   return false;
+    if(fSecondary && p.secondary !== fSecondary) return false;
+    if(fTertiary  && p.tertiary  !== fTertiary)  return false;
+    if(fInStock) {
+      const sv = p.stock;
+      const inStock = sv === 'In Stock' ||
+                      (typeof sv === 'number' && sv > 0) ||
+                      (typeof sv === 'string' && (sv.startsWith('<') || sv.startsWith('>')));
+      if(!inStock) return false;
+    }
+    return true;
+  });
+
+  if(sortCol) {
+    const dir = sortDir==='asc'?1:-1;
+    filtered.sort((a,b)=>{
+      let av=a[sortCol==='supplier'?'source':sortCol], bv=b[sortCol==='supplier'?'source':sortCol];
+      if(sortCol==='price'||sortCol==='rrp'){av=av??-Infinity;bv=bv??-Infinity;}
+      else if(sortCol==='stock'){const toN=v=>typeof v==='number'?v:(v==='In Stock'?999999:-1);av=toN(av);bv=toN(bv);}
+      else{av=(av||'').toLowerCase();bv=(bv||'').toLowerCase();}
+      return(av<bv?-1:av>bv?1:0)*dir;
+    });
+  }
+  curPage=1; render();
+}
+
+// ─── Sort ─────────────────────────────────────────────────────────────────────
+document.querySelectorAll('th[data-col]').forEach(th=>{
+  th.addEventListener('click',()=>{
+    const col=th.dataset.col;
+    sortDir=sortCol===col?(sortDir==='asc'?'desc':'asc'):'asc'; sortCol=col;
+    document.querySelectorAll('th').forEach(t=>{t.classList.remove('sorted');const a=t.querySelector('.arr');if(a)a.textContent='↕';});
+    th.classList.add('sorted');const a=th.querySelector('.arr');if(a)a.textContent=sortDir==='asc'?'↑':'↓';
+    doFilter();
+  });
+});
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+const xe=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function hl(text,words){
+  if(!words.length) return xe(text);
+  let r=xe(text);
+  words.forEach(w=>{r=r.replace(new RegExp('('+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),'<mark>$1</mark>');});
+  return r;
+}
+function stockBadge(v){
+  if(v===null||v==='') return '<span class="sb s-na">—</span>';
+  if(v==='In Stock') return '<span class="sb s-in">In Stock</span>';
+  if(typeof v==='number'){
+    if(v===0||v<0) return '<span class="sb s-out">Out of Stock</span>';
+    if(v<=10) return `<span class="sb s-lo">${v} left</span>`;
+    return `<span class="sb s-in">${v}</span>`;
+  }
+  // Handle Telstra SOH range strings: '>5000', '<100', '<=5000', '<50', '0'
+  // '<' = In Stock (limited qty range), '>' = In Stock (high qty), '0' = Out of Stock
+  const s = String(v).trim();
+  if(s==='0') return '<span class="sb s-out">Out of Stock</span>';
+  if(s.startsWith('<') || s.startsWith('>')) return `<span class="sb s-in">${xe(s)}</span>`;
+  return `<span class="sb s-na">${xe(s)}</span>`;
+}
+const fmt=n=>n!==null?'$'+n.toFixed(2):'N/A';
+
+function render(){
+  const total=filtered.length, start=(curPage-1)*PAGE, slice=filtered.slice(start,start+PAGE);
+  const raw=document.getElementById('q').value.trim().toLowerCase(), words=raw.split(/\s+/).filter(Boolean);
+  document.getElementById('rcount').innerHTML=`<strong>${total.toLocaleString()}</strong> result${total!==1?'s':''}`;
+  if(!slice.length){
+    document.getElementById('tbody').innerHTML=`<tr><td colspan="8"><div class="no-r"><h3>No results found</h3><p>Try adjusting your search or filters.</p></div></td></tr>`;
+  } else {
+    document.getElementById('tbody').innerHTML=slice.map((p,i)=>`
+      <tr data-i="${i}">
+        <td class="c-src"><span class="src-badge ${p.source}" title="${p.source==='dd'?'Dicker Data':'Telstra Supplier'}"></span></td>
+        <td class="c-sku">${hl(p.sku,words)}</td>
+        <td class="c-desc">${hl(p.description,words)}</td>
+        <td><span class="cat-tag" title="${xe(p.category)}">${hl(p.category||'—',words)}</span></td>
+        <td class="c-rrp">${fmt(p.rrp)}</td>
+        <td class="c-cost">${p.price!==null?fmt(p.price):'<span style="color:var(--faint);font-weight:500">N/A</span>'}</td>
+        <td class="c-stock">${stockBadge(p.stock)}</td>
+        <td class="c-supplier"><span class="supplier-badge ${p.source}">${p.source==='dd'?'Dicker Data':'Telstra'}</span></td>
+      </tr>`).join('');
+    document.querySelectorAll('#tbody tr').forEach((row,i)=>row.addEventListener('click',()=>openModal(slice[i])));
+  }
+  const pages=Math.ceil(total/PAGE), s=(curPage-1)*PAGE+1, e=Math.min(curPage*PAGE,total);
+  document.getElementById('pinfo').textContent=total?`Showing ${s.toLocaleString()}–${e.toLocaleString()} of ${total.toLocaleString()}`:'';
+  const pb=document.getElementById('pbtns'); pb.innerHTML='';
+  const mkPg=(lbl,p,on,dis)=>{
+    const b=document.createElement('button');
+    b.className='pg'+(on?' on':'');b.innerHTML=lbl;b.disabled=dis;
+    b.addEventListener('click',()=>{curPage=p;render();window.scrollTo({top:0,behavior:'smooth'});});
+    pb.appendChild(b);
+  };
+  mkPg('‹',curPage-1,false,curPage===1);
+  let lo=Math.max(1,curPage-2),hi=Math.min(pages,lo+4);lo=Math.max(1,hi-4);
+  for(let p=lo;p<=hi;p++) mkPg(p,p,p===curPage,false);
+  mkPg('›',curPage+1,false,curPage===pages||pages===0);
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+function openModal(item){
+  activeItem=item;
+  document.getElementById('mSku').textContent=item.sku;
+  document.getElementById('mTitle').textContent=item.sku;
+  document.getElementById('mDesc').textContent=item.description||'—';
+  document.getElementById('mCat').textContent=[item.category,item.secondary,item.tertiary].filter(v=>v&&v!=='#N/A').join(' › ');
+  document.getElementById('mRrp').textContent=fmt(item.rrp);
+  document.getElementById('mPrice').textContent=item.price!==null?fmt(item.price):'N/A';
+  const sv=item.stock;
+  document.getElementById('mStock').textContent=sv===null?'—':sv==='In Stock'?'In Stock':typeof sv==='number'?(sv<=0?'Out of Stock':sv+' units'):String(sv);
+  document.getElementById('mMargin').textContent=(item.rrp&&item.price&&item.rrp>0)?((item.rrp-item.price)/item.rrp*100).toFixed(1)+'%':'N/A';
+  const src=document.getElementById('mSrc');
+  src.textContent=item.source==='dd'?'Dicker Data':'Telstra Supplier';
+  src.className='msrc '+(item.source==='dd'?'dd':'ts');
+  document.getElementById('ov').classList.add('open');
+}
+const closeModal=()=>document.getElementById('ov').classList.remove('open');
+document.getElementById('mclose').addEventListener('click',closeModal);
+document.getElementById('ov').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+document.getElementById('bSku').addEventListener('click',()=>{if(!activeItem)return;navigator.clipboard.writeText(activeItem.sku);flash('bSku','Copied!');});
+document.getElementById('bRow').addEventListener('click',()=>{
+  if(!activeItem)return;
+  const p=activeItem;
+  navigator.clipboard.writeText([p.sku,p.description,p.category,p.secondary,p.tertiary,p.rrp?.toFixed(2)??'',p.price?.toFixed(2)??'N/A',p.stock??''].join('\t'));
+  flash('bRow','Copied!');
+});
+function flash(id,msg){const b=document.getElementById(id),o=b.textContent;b.textContent=msg;b.classList.add('done');setTimeout(()=>{b.textContent=o;b.classList.remove('done');},1400);}
+function setDot(cls){document.getElementById('dot').className='dot '+cls;}
+function setTxt(t){document.getElementById('stxt').textContent=t;}
+</script>
+</body>
+</html>
